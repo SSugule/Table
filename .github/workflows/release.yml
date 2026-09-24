@@ -1,0 +1,115 @@
+name: Build APK, Auto-Version & Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - 'README.md'
+      - '.gitignore'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Calculate and Bump Version
+        id: versioning
+        run: |
+          chmod +x scripts/bump-version.js
+          node scripts/bump-version.js
+
+      - name: Ensure Gradlew is Executable
+        run: chmod +x ./gradlew || true
+
+      - name: Run Unit Tests
+        run: |
+          echo "Running unit tests and verification..."
+          ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Build Android APK
+        run: |
+          echo "Compiling APK..."
+          # Build release or fallback to debug assemble if keystore secret is not present
+          if ./gradlew assembleRelease; then
+            echo "Release build succeeded"
+          else
+            echo "Building with assembleDebug as fallback..."
+            ./gradlew assembleDebug
+          fi
+
+      - name: Prepare APK Asset for Release
+        id: prepare_asset
+        run: |
+          NEW_VER="${{ steps.versioning.outputs.new_version }}"
+          mkdir -p release-artifacts
+
+          # Locate generated APK
+          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "Error: No APK found after build!"
+            exit 1
+          fi
+
+          TARGET_APK="release-artifacts/DutySchedule_v${NEW_VER}.apk"
+          cp "$APK_PATH" "$TARGET_APK"
+          echo "apk_path=$TARGET_APK" >> $GITHUB_OUTPUT
+          echo "apk_filename=DutySchedule_v${NEW_VER}.apk" >> $GITHUB_OUTPUT
+          ls -lh "$TARGET_APK"
+
+      - name: Commit Version Bump and Tag
+        run: |
+          NEW_VER="${{ steps.versioning.outputs.new_version }}"
+          TAG="v${NEW_VER}"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add package.json app/build.gradle.kts
+          git commit -m "chore(release): bump version to ${NEW_VER} [skip ci]" || echo "No changes to commit"
+          git tag "$TAG"
+          git push origin HEAD:${{ github.ref_name }} --tags
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.versioning.outputs.tag_name }}
+          name: "Release ${{ steps.versioning.outputs.tag_name }}"
+          body: |
+            ## 🚀 Monarchy: Eternal Reign — График Нарядов и Дежурств
+            
+            **Версия:** `${{ steps.versioning.outputs.new_version }}`
+            
+            ### Изменения в релизе:
+            - Автоматическая сборка APK через GitHub Actions
+            - Строгая валидация и прохождение Unit-тестов
+            - Поддержка мгновенного обновления из приложения без запросов подтверждения
+            
+            ### Файлы для установки:
+            - **${{ steps.prepare_asset.outputs.apk_filename }}** (установочный APK файл для Android)
+          files: |
+            ${{ steps.prepare_asset.outputs.apk_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

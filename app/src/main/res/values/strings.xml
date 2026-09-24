@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">7605</string>
+    <string name="app_full_name">7605 • График нарядов</string>
+    <string name="tab_schedule">График</string>
+    <string name="tab_employees">Сотрудники</string>
+    <string name="tab_posts">Посты (Работы)</string>
+    <string name="tab_export">Экспорт</string>
+</resources>

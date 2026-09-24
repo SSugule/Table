@@ -1,0 +1,6 @@
+{
+  "name": "7605",
+  "description": "Автоматизированное составление графиков суточных нарядов и дежурств, учет отсыпных и выходных, управление персоналом и экспорт в PDF/PNG",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

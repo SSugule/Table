@@ -1,0 +1,12 @@
+{
+  "name": "monarchy-eternal-reign-duty-scheduler",
+  "version": "0.1.1",
+  "description": "Duty Schedule & Monarchy Eternal Reign - Android Application",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Tests handled by Gradle: gradle :app:testDebugUnitTest\" && exit 0",
+    "bump-version": "node scripts/bump-version.js"
+  },
+  "author": "super.souls2018@yandex.ru",
+  "license": "MIT"
+}
