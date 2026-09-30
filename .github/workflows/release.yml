@@ -28,11 +28,11 @@ jobs:
         with:
           node-version: 20
 
-      - name: Setup Java 17
+      - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: 17
+          java-version: 21
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -40,7 +40,7 @@ jobs:
       - name: Calculate and Bump Version
         id: versioning
         run: |
-          chmod +x scripts/bump-version.js
+          chmod +x scripts/bump-version.js scripts/test-version.js || true
           node scripts/test-version.js
           node scripts/bump-version.js
 
@@ -51,6 +51,13 @@ jobs:
         run: |
           echo "Running unit tests and verification..."
           ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Upload Test Report on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: app/build/reports/tests/testDebugUnitTest/
 
       - name: Build Android APK
         run: |
@@ -71,8 +78,12 @@ jobs:
           NEW_VER="${{ steps.versioning.outputs.new_version }}"
           mkdir -p release-artifacts
 
-          # Locate generated APK
-          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+          # Locate generated APK (prefer release over debug)
+          APK_PATH=$(find app/build/outputs/apk -name "*release*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+          fi
+
           if [ -z "$APK_PATH" ]; then
             echo "Error: No APK found after build!"
             exit 1
