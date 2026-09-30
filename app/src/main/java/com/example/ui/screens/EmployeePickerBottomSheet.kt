@@ -100,11 +100,42 @@ fun EmployeePickerBottomSheet(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    val filteredCandidates = remember(candidates, searchQuery) {
-        if (searchQuery.isBlank()) {
+    // Разделение кандидатов по категориям
+    val workingCandidates = remember(candidates) {
+        candidates.filter { it.category == AvailabilityCategory.AVAILABLE_WORKING }
+    }
+    val dayOffCandidates = remember(candidates) {
+        candidates.filter { it.category == AvailabilityCategory.RESERVE_DAY_OFF }
+    }
+    val restDayCandidates = remember(candidates) {
+        candidates.filter { it.category == AvailabilityCategory.RESERVE_REST_DAY }
+    }
+
+    // Состояния для отображения резерва / нарядов вне очереди (наказания)
+    var showDayOffCandidates by remember { mutableStateOf(false) }
+    var showRestDayCandidates by remember { mutableStateOf(false) }
+
+    val visibleCandidates = remember(candidates, isSeniorCar, showDayOffCandidates, showRestDayCandidates) {
+        if (isSeniorCar) {
             candidates
         } else {
-            candidates.filter { it.employee.fullName.contains(searchQuery, ignoreCase = true) }
+            val list = mutableListOf<CandidateItem>()
+            list.addAll(workingCandidates)
+            if (showDayOffCandidates) {
+                list.addAll(dayOffCandidates)
+            }
+            if (showRestDayCandidates) {
+                list.addAll(restDayCandidates)
+            }
+            list
+        }
+    }
+
+    val filteredCandidates = remember(visibleCandidates, searchQuery) {
+        if (searchQuery.isBlank()) {
+            visibleCandidates
+        } else {
+            visibleCandidates.filter { it.employee.fullName.contains(searchQuery, ignoreCase = true) }
         }
     }
 
@@ -313,7 +344,94 @@ fun EmployeePickerBottomSheet(
 
             Spacer(modifier = Modifier.height(10.dp))
             HorizontalDivider(color = SlateBorder)
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Красное поле: кнопки отображения людей с выходного и отсыпного (наказания / вне очереди)
+            if (!isSeniorCar) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFFEF2F2),
+                    border = BorderStroke(1.5.dp, Color(0xFFEF4444)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("reserve_red_panel")
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFDC2626),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Резерв и наряды вне очереди (наказания)",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color(0xFF991B1B)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Для назначения людей при нехватке или за невыход на работу (наряды вне очереди):",
+                            fontSize = 11.sp,
+                            color = Color(0xFF7F1D1D)
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Кнопка 1: Отобразить людей с выходного
+                            OutlinedButton(
+                                onClick = { showDayOffCandidates = !showDayOffCandidates },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (showDayOffCandidates) Color(0xFFD97706) else Color.White,
+                                    contentColor = if (showDayOffCandidates) Color.White else Color(0xFF92400E)
+                                ),
+                                border = BorderStroke(1.dp, Color(0xFFD97706)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("toggle_day_off_btn")
+                            ) {
+                                Text(
+                                    text = if (showDayOffCandidates) "✓ Скрыть выходных" else "+ С выходного (${dayOffCandidates.size})",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                            }
+
+                            // Кнопка 2: Добавить людей с отсыпного (наряд вне очереди)
+                            OutlinedButton(
+                                onClick = { showRestDayCandidates = !showRestDayCandidates },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (showRestDayCandidates) Color(0xFFDC2626) else Color.White,
+                                    contentColor = if (showRestDayCandidates) Color.White else Color(0xFF991B1B)
+                                ),
+                                border = BorderStroke(1.dp, Color(0xFFDC2626)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("toggle_rest_day_btn")
+                            ) {
+                                Text(
+                                    text = if (showRestDayCandidates) "✓ Скрыть отсыпных" else "+ С отсыпного (${restDayCandidates.size})",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             // Список кандидатов
             Text(
@@ -384,8 +502,11 @@ fun CandidateCard(
     isReserve: Boolean,
     onClick: () -> Unit
 ) {
+    val isRestDayPenalty = candidate.category == AvailabilityCategory.RESERVE_REST_DAY
+
     val cardBg = when {
         isSelected -> Color(0xFFEFF6FF)
+        isRestDayPenalty -> Color(0xFFFEF2F2)
         isAvailable -> Color.White
         isReserve -> Color(0xFFFFFBEB)
         else -> Color(0xFFF1F5F9)
@@ -393,6 +514,7 @@ fun CandidateCard(
 
     val borderColor = when {
         isSelected -> PrimaryBlue
+        isRestDayPenalty -> Color(0xFFF87171)
         isAvailable -> Color(0xFFCBD5E1)
         isReserve -> Color(0xFFFCD34D)
         else -> Color(0xFFE2E8F0)
@@ -422,6 +544,23 @@ fun CandidateCard(
                         fontSize = 15.sp,
                         color = Navy800
                     )
+
+                    if (!candidate.employee.priorityPostId.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFFF3E8FF),
+                            border = BorderStroke(0.5.dp, Color(0xFFC084FC))
+                        ) {
+                            Text(
+                                text = "Приоритет",
+                                color = Color(0xFF7E22CE),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
 
                     if (isSelected) {
                         Spacer(modifier = Modifier.width(6.dp))

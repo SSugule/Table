@@ -61,6 +61,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
@@ -187,8 +188,9 @@ fun EmployeesScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Сотрудники не найдены",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = if (employees.isEmpty()) "Список сотрудников пуст.\nНажмите «+» внизу экрана, чтобы добавить первого сотрудника." else "Сотрудники не найдены",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
@@ -306,6 +308,56 @@ fun EmployeeCard(
                         tint = Color(0xFF64748B),
                         modifier = Modifier.size(18.dp)
                     )
+                }
+            }
+
+            // Бейджи: приоритет поста и ближайший отпуск
+            if (!employee.priorityPostId.isNullOrBlank() || !employee.upcomingVacationStart.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (!employee.priorityPostId.isNullOrBlank()) {
+                        val postName = when (employee.priorityPostId) {
+                            "kpp1" -> "КПП-1"
+                            "kpp2" -> "КПП-2"
+                            "vg2" -> "ВГ-2"
+                            "senior_car" -> "Ст. машины"
+                            else -> employee.priorityPostId
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFFF3E8FF),
+                            border = BorderStroke(0.5.dp, Color(0xFFC084FC))
+                        ) {
+                            Text(
+                                text = "Приоритет: $postName",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF7E22CE),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    if (!employee.upcomingVacationStart.isNullOrBlank()) {
+                        val endStr = if (!employee.upcomingVacationEnd.isNullOrBlank()) " по ${employee.upcomingVacationEnd}" else ""
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFFEFF6FF),
+                            border = BorderStroke(0.5.dp, Color(0xFF93C5FD))
+                        ) {
+                            Text(
+                                text = "🏖 Ближайший отпуск: с ${employee.upcomingVacationStart}$endStr",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF1E40AF),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -456,6 +508,9 @@ fun EditEmployeeDialog(
     var selectedType by remember { mutableStateOf(employee.type) }
     var manualStatus by remember { mutableStateOf(employee.manualStatus) }
     var statusUntilDate by remember { mutableStateOf(employee.statusUntilDate.orEmpty()) }
+    var upcomingVacationStart by remember { mutableStateOf(employee.upcomingVacationStart.orEmpty()) }
+    var upcomingVacationEnd by remember { mutableStateOf(employee.upcomingVacationEnd.orEmpty()) }
+    var priorityPostId by remember { mutableStateOf(employee.priorityPostId) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -510,6 +565,58 @@ fun EditEmployeeDialog(
                     }
                 }
 
+                // Кнопки приоритета по постам для дежурных
+                if (selectedType == EmployeeType.DUTY) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Приоритет заступления по постам:",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            color = Navy800
+                        )
+                        Text(
+                            text = "Например: приоритет ВГ2. На остальные посты сотрудник не будет отображаться, пока приоритет установлен.",
+                            fontSize = 11.sp,
+                            color = Color(0xFF64748B),
+                            lineHeight = 14.sp
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf(
+                                null to "Все",
+                                "kpp1" to "КПП-1",
+                                "kpp2" to "КПП-2",
+                                "vg2" to "ВГ-2",
+                                "senior_car" to "Ст.м."
+                            ).forEach { (postId, label) ->
+                                val isSel = priorityPostId == postId
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSel) Color(0xFF7E22CE) else Color(0xFFF1F5F9),
+                                    border = BorderStroke(1.dp, if (isSel) Color(0xFF6B21A8) else Color(0xFFE2E8F0)),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { priorityPostId = postId }
+                                        .testTag("priority_chip_${postId ?: "none"}")
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSel) Color.White else Navy800,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(vertical = 7.dp, horizontal = 1.dp),
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Text(
                     text = "Базовый статус:",
                     fontWeight = FontWeight.SemiBold,
@@ -551,6 +658,47 @@ fun EditEmployeeDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+
+                // Вторая графа: "Ближайший отпуск"
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Отпуск — графа «Ближайший»:",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        color = Navy800
+                    )
+                    Text(
+                        text = "Учитывается в графике: сотрудник исключается из нарядов на эти даты",
+                        fontSize = 11.sp,
+                        color = Color(0xFF64748B),
+                        lineHeight = 14.sp
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = upcomingVacationStart,
+                            onValueChange = { upcomingVacationStart = it },
+                            label = { Text("С даты") },
+                            placeholder = { Text("15.10.26") },
+                            singleLine = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("upcoming_vacation_start_input")
+                        )
+                        OutlinedTextField(
+                            value = upcomingVacationEnd,
+                            onValueChange = { upcomingVacationEnd = it },
+                            label = { Text("По дату") },
+                            placeholder = { Text("30.10.26") },
+                            singleLine = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("upcoming_vacation_end_input")
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
@@ -561,7 +709,10 @@ fun EditEmployeeDialog(
                             fullName = fullName.trim(),
                             type = selectedType,
                             manualStatus = manualStatus,
-                            statusUntilDate = if (manualStatus == EmployeeStatus.VACATION || manualStatus == EmployeeStatus.SICK_LEAVE) statusUntilDate.trim() else null
+                            statusUntilDate = if (manualStatus == EmployeeStatus.VACATION || manualStatus == EmployeeStatus.SICK_LEAVE) statusUntilDate.trim() else null,
+                            upcomingVacationStart = upcomingVacationStart.trim().ifBlank { null },
+                            upcomingVacationEnd = upcomingVacationEnd.trim().ifBlank { null },
+                            priorityPostId = if (selectedType == EmployeeType.DUTY) priorityPostId else null
                         )
                     )
                 },

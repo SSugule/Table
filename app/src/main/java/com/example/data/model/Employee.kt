@@ -24,6 +24,12 @@ data class Employee(
     val type: EmployeeType, // Дежурный / Помощник
     val manualStatus: EmployeeStatus = EmployeeStatus.WORKING, // Базовый статус или отпуск/больничный
     val statusUntilDate: String? = null, // например "01.08.26"
+    // Ближайший отпуск: учитывается в графике (человек исключается из нарядов на эти даты)
+    val upcomingVacationStart: String? = null, // например "15.10.26"
+    val upcomingVacationEnd: String? = null,   // например "30.10.26"
+    // Приоритет постов для дежурных (например "vg2", "kpp1", "kpp2", "senior_car")
+    // Если установлен, на остальные посты сотрудник не отображается
+    val priorityPostId: String? = null,
     val phone: String = "",
     val notes: String = "",
     val isActive: Boolean = true

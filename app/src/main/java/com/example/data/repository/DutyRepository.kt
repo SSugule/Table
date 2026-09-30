@@ -86,44 +86,13 @@ class DutyRepository(
     }
 
     /**
-     * Предустановка первоначальной базы сотрудников и графика (из предоставленного листа)
+     * При установке приложения пользователем из GitHub:
+     * - График = nil
+     * - Сотрудники = nil
+     * Пользователь сам добавит необходимых сотрудников и сам создаст график.
      */
     suspend fun checkAndSeedInitialData() = withContext(Dispatchers.IO) {
-        if (employeeDao.getCount() > 0) return@withContext
-
-        val initialEmployees = listOf(
-            // Дежурные
-            Employee(fullName = "Колпаков А.В.", type = EmployeeType.DUTY),
-            Employee(fullName = "Шахматов В.П.", type = EmployeeType.DUTY),
-            Employee(fullName = "Иманов Р.С.", type = EmployeeType.DUTY),
-            Employee(fullName = "Кочановский Д.И.", type = EmployeeType.DUTY),
-            Employee(fullName = "Фадеев М.К.", type = EmployeeType.DUTY),
-            Employee(fullName = "Крамаренко С.Н.", type = EmployeeType.DUTY),
-            Employee(fullName = "Наруков И.Е.", type = EmployeeType.DUTY),
-            Employee(fullName = "Джумагазиев Е.Т.", type = EmployeeType.DUTY),
-            Employee(fullName = "Алексеенко В.М.", type = EmployeeType.DUTY),
-
-            // Помощники
-            Employee(fullName = "Амбарцумян А.А.", type = EmployeeType.DUTY), // На КПП1 дежурный
-            Employee(fullName = "Шантин И.В.", type = EmployeeType.ASSISTANT),
-            Employee(fullName = "Инешин П.Г.", type = EmployeeType.ASSISTANT),
-            Employee(fullName = "Куваев А.Д.", type = EmployeeType.ASSISTANT),
-            Employee(fullName = "Винокуров С.Б.", type = EmployeeType.ASSISTANT),
-            Employee(fullName = "Соломатин Д.В.", type = EmployeeType.ASSISTANT),
-            Employee(fullName = "Белан К.И.", type = EmployeeType.ASSISTANT)
-        )
-
-        val insertedIds = employeeDao.insertAll(initialEmployees)
-        val empMap = mutableMapOf<String, Long>()
-        initialEmployees.forEachIndexed { index, emp ->
-            val id = insertedIds.getOrNull(index) ?: (index + 1).toLong()
-            empMap[emp.fullName.substringBefore(" ")] = id
-        }
-
-        // База сотрудников создана, но сам график изначально пустой!
-        // График создается пользователем через кнопку "Создать график" (на неделю / месяц / свой диапазон).
-        val initialEmptyAssignments = emptyList<DutyAssignment>()
-        dutyAssignmentDao.insertAll(initialEmptyAssignments)
+        // Никаких стандартных сотрудников и назначений не добавляем!
     }
 }
 

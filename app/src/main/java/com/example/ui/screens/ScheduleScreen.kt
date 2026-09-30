@@ -430,11 +430,34 @@ fun ScheduleScreen(
                         }
                     }
 
+                    if (employees.isEmpty()) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFFEF2F2),
+                            border = BorderStroke(1.dp, Color(0xFFF87171)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "В базе пока нет сотрудников! Перейдите во вкладку «Сотрудники» и добавьте дежурных и помощников.",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF991B1B)
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "• Соблюдается правило отдыха: Сутки -> Отсыпной -> Выходной -> Рабочий день\n" +
-                                "• Старший машины: дневной наряд (можно заступать даже в отсыпной день)\n" +
-                                "• Разделение дежурных и помощников по постам",
+                                "• Учитываются отпуска (в т.ч. графа «Ближайший»)\n" +
+                                "• Учитываются приоритеты дежурных по постам\n" +
+                                "• Старший машины: дневной наряд (можно заступать даже в отсыпной день)",
                         fontSize = 11.sp,
                         color = Color(0xFF64748B),
                         lineHeight = 15.sp

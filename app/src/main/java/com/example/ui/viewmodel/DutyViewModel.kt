@@ -250,6 +250,11 @@ class DutyViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun createScheduleForRange(startDate: LocalDate, endDate: LocalDate, overwrite: Boolean = true) {
         viewModelScope.launch {
+            if (allEmployees.value.isEmpty()) {
+                _events.emit(UiEvent.ShowToast("Сначала добавьте сотрудников во вкладке «Сотрудники»!"))
+                return@launch
+            }
+
             val newAssignments = DutyRulesEngine.autoScheduleRange(
                 startDate = startDate,
                 endDate = endDate,

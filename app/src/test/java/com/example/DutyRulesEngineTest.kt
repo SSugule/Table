@@ -196,8 +196,8 @@ class DutyRulesEngineTest {
 
         val kpp2 = DutyPost.POST_KPP2
 
-        // Когда нет доступных на рабочем дне, начинают отображаться те, у кого был выходной
-        val candidatesNoWorking = DutyRulesEngine.getRankedCandidates(
+        // Кандидаты возвращаются с корректными категориями доступности (выходной и отсыпной)
+        val candidates = DutyRulesEngine.getRankedCandidates(
             targetDate = targetDate,
             post = kpp2,
             slot = kpp2.slots[0],
@@ -206,23 +206,104 @@ class DutyRulesEngineTest {
             allAssignments = assignments
         )
 
-        assertEquals(1, candidatesNoWorking.size)
-        assertEquals(2L, candidatesNoWorking[0].employee.id)
-        assertEquals(AvailabilityCategory.RESERVE_DAY_OFF, candidatesNoWorking[0].category)
+        val dayOffItem = candidates.find { it.employee.id == 2L }
+        val restItem = candidates.find { it.employee.id == 3L }
 
-        // Если и с выходным нет, подключается отсыпной
-        val candidatesOnlyRest = DutyRulesEngine.getRankedCandidates(
+        assertEquals(AvailabilityCategory.RESERVE_DAY_OFF, dayOffItem?.category)
+        assertEquals(AvailabilityCategory.RESERVE_REST_DAY, restItem?.category)
+    }
+
+    @Test
+    fun testUpcomingVacationExcludesEmployeeFromSchedule() {
+        val empOnUpcomingVacation = Employee(
+            id = 1L,
+            fullName = "Колпаков А.В.",
+            type = EmployeeType.DUTY,
+            upcomingVacationStart = "2026-09-20",
+            upcomingVacationEnd = "2026-09-26"
+        )
+        val empWorking = Employee(
+            id = 2L,
+            fullName = "Шахматов В.П.",
+            type = EmployeeType.DUTY
+        )
+
+        // 25 сентября попадает в ближайший отпуск Колпакова
+        val targetDate = LocalDate.of(2026, 9, 25)
+        assertTrue(DutyRulesEngine.isEmployeeOnVacation(empOnUpcomingVacation, targetDate))
+        assertFalse(DutyRulesEngine.isEmployeeOnVacation(empWorking, targetDate))
+
+        val kpp2 = DutyPost.POST_KPP2
+        val candidates = DutyRulesEngine.getRankedCandidates(
             targetDate = targetDate,
             post = kpp2,
             slot = kpp2.slots[0],
             currentEmployeeId = null,
-            employees = listOf(empRest),
-            allAssignments = assignments
+            employees = listOf(empOnUpcomingVacation, empWorking),
+            allAssignments = emptyList()
         )
 
-        assertEquals(1, candidatesOnlyRest.size)
-        assertEquals(3L, candidatesOnlyRest[0].employee.id)
-        assertEquals(AvailabilityCategory.RESERVE_REST_DAY, candidatesOnlyRest[0].category)
+        // Колпаков не должен отображаться среди кандидатов
+        assertEquals(1, candidates.size)
+        assertEquals(2L, candidates[0].employee.id)
+
+        // А 28 сентября (после отпуска) Колпаков снова доступен
+        val afterVacation = LocalDate.of(2026, 9, 28)
+        assertFalse(DutyRulesEngine.isEmployeeOnVacation(empOnUpcomingVacation, afterVacation))
+    }
+
+    @Test
+    fun testPostPriorityHidesEmployeeFromOtherPosts() {
+        // Джумагазиев: приоритет заступления ВГ2
+        val dzhumagaziev = Employee(
+            id = 1L,
+            fullName = "Джумагазиев Е.Т.",
+            type = EmployeeType.DUTY,
+            priorityPostId = "vg2"
+        )
+        val otherOfficer = Employee(
+            id = 2L,
+            fullName = "Иванов И.И.",
+            type = EmployeeType.DUTY
+        )
+
+        val targetDate = LocalDate.of(2026, 9, 25)
+
+        // 1. Пост КПП-2: Джумагазиев НЕ должен отображаться, пока установлен приоритет ВГ2!
+        val kpp2Candidates = DutyRulesEngine.getRankedCandidates(
+            targetDate = targetDate,
+            post = DutyPost.POST_KPP2,
+            slot = DutyPost.POST_KPP2.slots[0],
+            currentEmployeeId = null,
+            employees = listOf(dzhumagaziev, otherOfficer),
+            allAssignments = emptyList()
+        )
+        assertEquals(1, kpp2Candidates.size)
+        assertEquals(2L, kpp2Candidates[0].employee.id)
+
+        // 2. Пост КПП-1: аналогично не отображается
+        val kpp1Candidates = DutyRulesEngine.getRankedCandidates(
+            targetDate = targetDate,
+            post = DutyPost.POST_KPP1,
+            slot = DutyPost.POST_KPP1.slots[0],
+            currentEmployeeId = null,
+            employees = listOf(dzhumagaziev, otherOfficer),
+            allAssignments = emptyList()
+        )
+        assertEquals(1, kpp1Candidates.size)
+        assertEquals(2L, kpp1Candidates[0].employee.id)
+
+        // 3. Пост ВГ-2 (его приоритетный пост): отображается и идет ПЕРВЫМ!
+        val vg2Candidates = DutyRulesEngine.getRankedCandidates(
+            targetDate = targetDate,
+            post = DutyPost.POST_VG2,
+            slot = DutyPost.POST_VG2.slots[0],
+            currentEmployeeId = null,
+            employees = listOf(otherOfficer, dzhumagaziev),
+            allAssignments = emptyList()
+        )
+        assertEquals(2, vg2Candidates.size)
+        assertEquals(1L, vg2Candidates[0].employee.id) // Джумагазиев первый
     }
 
     @Test
