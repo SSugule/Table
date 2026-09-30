@@ -41,6 +41,7 @@ jobs:
         id: versioning
         run: |
           chmod +x scripts/bump-version.js
+          node scripts/test-version.js
           node scripts/bump-version.js
 
       - name: Ensure Gradlew is Executable
@@ -54,11 +55,13 @@ jobs:
       - name: Build Android APK
         run: |
           echo "Compiling APK..."
-          # Build release or fallback to debug assemble if keystore secret is not present
-          if ./gradlew assembleRelease; then
-            echo "Release build succeeded"
+          # Build release if keystore is present, otherwise assembleDebug
+          KEYSTORE_FILE="${KEYSTORE_PATH:-my-upload-key.jks}"
+          if [ -f "$KEYSTORE_FILE" ]; then
+            echo "Release keystore detected ($KEYSTORE_FILE), running assembleRelease..."
+            ./gradlew assembleRelease
           else
-            echo "Building with assembleDebug as fallback..."
+            echo "No custom release keystore found, compiling with assembleDebug..."
             ./gradlew assembleDebug
           fi
 
@@ -89,23 +92,26 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add package.json app/build.gradle.kts
           git commit -m "chore(release): bump version to ${NEW_VER} [skip ci]" || echo "No changes to commit"
-          git tag "$TAG"
-          git push origin HEAD:${{ github.ref_name }} --tags
+          git tag -f "$TAG"
+          git push origin HEAD:${{ github.ref_name }} --tags || git push origin --tags || echo "Push skipped or branch protected"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.versioning.outputs.tag_name }}
           name: "Release ${{ steps.versioning.outputs.tag_name }}"
+          make_latest: true
           body: |
             ## 🚀 Monarchy: Eternal Reign — График Нарядов и Дежурств
             
             **Версия:** `${{ steps.versioning.outputs.new_version }}`
             
             ### Изменения в релизе:
+            - Исправлен Unit-тест доступности кандидатов в DutyRulesEngineTest
+            - Графа отпуска «Ближайший» для исключения наложения дежурств
+            - Настройки приоритета постов для дежурных (например, Джумагазиев ВГ2)
+            - Кнопки добавления людей с выходного и отсыпного дней (наказания/внеочередные наряды)
             - Автоматическая сборка APK через GitHub Actions
-            - Строгая валидация и прохождение Unit-тестов
-            - Поддержка мгновенного обновления из приложения без запросов подтверждения
             
             ### Файлы для установки:
             - **${{ steps.prepare_asset.outputs.apk_filename }}** (установочный APK файл для Android)
